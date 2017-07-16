@@ -107,7 +107,7 @@ SwitchmatePlatform.prototype.removeAccessory = function (accessory) {
 SwitchmatePlatform.prototype.setService = function (accessory) {
     accessory.getService(Service.Switch)
             .getCharacteristic(Characteristic.On)
-            .on('set', this.setToggleState.bind(this, accessory.context))
+            .on('set', this.setToggleState.bind(this, accessory, accessory.context))
             .on('get', this.getToggleState.bind(this, accessory.context));
 
     accessory.on('identify', this.identify.bind(this, accessory.context));
@@ -129,12 +129,21 @@ SwitchmatePlatform.prototype.getInitState = function (accessory, data) {
             .getValue();
 };
 
-SwitchmatePlatform.prototype.setToggleState = function (mySwitchmate, powerState, callback) {
-
+SwitchmatePlatform.prototype.setToggleState = function (accessory, mySwitchmate, powerState, callback) {
     var platform = this;
     platform.log("Setting %s (%s) to: %s", mySwitchmate.displayName, mySwitchmate.name, (powerState ? "ON" : "OFF"));
     powerState ? platform.SmManager.On(mySwitchmate.id) : platform.SmManager.Off(mySwitchmate.id);
-    callback();
+
+    var tries = 10;
+    (function checkStatus() {
+        setTimeout(function() {
+            tries--;
+            var status = platform.SmManager.GetSwitchmateState(mySwitchmate.id);
+            if (status == powerState) return callback();
+            if (tries <= 0) return callback(true);
+            checkStatus();
+        }, 1000);
+    })();
 };
 
 SwitchmatePlatform.prototype.getToggleState = function (mySwitchmate, callback) {
