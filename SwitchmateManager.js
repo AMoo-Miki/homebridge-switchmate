@@ -2,8 +2,7 @@ var SwitchmateDevice = require('node-switchmate').SwitchmateDevice;
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 
-var SwitchmateManager = function ()
-{
+var SwitchmateManager = function() {
     var manager = this;
     manager.initialized = false;
     manager.SmIdList = [];
@@ -14,21 +13,18 @@ var SwitchmateManager = function ()
         return new SwitchmateManager();
 
 
-    manager.FindAllSwitchmates = function ()
-    {
+    manager.FindAllSwitchmates = function() {
         SwitchmateDevice.SCAN_DUPLICATES = true;
         SwitchmateDevice.discoverAll(onFound);
     };
 
-    manager.StopFind = function ()
-    {
+    manager.StopFind = function() {
         SwitchmateDevice.stopDiscoverAll(onFound);
     };
-    
-    manager.ResetSwitchmateScan = function()
-    {
-            manager.StopFind();
-            manager.FindAllSwitchmates();
+
+    manager.ResetSwitchmateScan = function() {
+        manager.StopFind();
+        manager.FindAllSwitchmates();
     };
 
     function onFound(foundSm) {
@@ -41,22 +37,23 @@ var SwitchmateManager = function ()
                 if (typeof manager.SmAuthList[smid] !== 'undefined') { //if an auth code exists, set it up!
                     foundSm.setAuthCode(manager.SmAuthList[smid]);
                 }
+
+                manager.log("********** Found " + smid);
+
                 var foundSmToggleMode = foundSm.ToggleMode();
-                foundSm.on('unreachable', function (smid) {
+                foundSm.on('unreachable', function(smid) {
                     manager.event.emit('smUnreachable', smid);
                 });
-                foundSm.on('reachable', function (smid) {
+                foundSm.on('reachable', function(smid) {
                     manager.event.emit('smReachable', smid);
                 });
-                foundSmToggleMode.event.on('toggleDone',manager.ResetSwitchmateScan);
+                foundSmToggleMode.event.on('toggleDone', manager.ResetSwitchmateScan);
                 foundSm.foundMe();
                 manager.Switchmates[smid] = foundSm;
                 manager.SmIdList[smid] = true;
                 manager.event.emit('smSetup', smid);
-            } else
-            {
-                if (manager.Switchmates[smid].ToggleState !== foundSm.ToggleState && foundSm.ToggleState !== null)
-                {
+            } else {
+                if (manager.Switchmates[smid].ToggleState !== foundSm.ToggleState && foundSm.ToggleState !== null) {
                     manager.Switchmates[smid].ToggleState = foundSm.ToggleState;
                     manager.event.emit('smToggleStateChange', smid, foundSm.ToggleState);
                 }
@@ -66,72 +63,67 @@ var SwitchmateManager = function ()
     }
 };
 
-SwitchmateManager.prototype.Initialize = function (sm_config)
-{
+SwitchmateManager.prototype.Initialize = function(sm_config, log) {
     var manager = this;
-    if (!manager.initialized)
-    {
+    this.log = log;
+    if (!manager.initialized) {
         manager.SmRaw = sm_config;
         for (var i = 0, len = manager.SmRaw.length; i < len; i++) {
             sminfo = manager.SmRaw[i];
-            manager.SmIdList[sminfo.id] = false;
-            manager.SmAuthList[sminfo.id] = sminfo.authCode;
+            if (sminfo.devices) {
+                sminfo.devices.forEach(device => {
+                    log('** Going to look for', device.id);
+                    manager.SmIdList[device.id] = false;
+                    manager.SmAuthList[device.id] = device.authCode;
+                });
+            } else {
+                manager.SmIdList[sminfo.id] = false;
+                manager.SmAuthList[sminfo.id] = sminfo.authCode;
+            }
         }
         manager.FindAllSwitchmates();
         manager.initialized = true;
     }
 };
 
-SwitchmateManager.prototype.GetSwitchmateState = function (smid)
-{
+SwitchmateManager.prototype.GetSwitchmateState = function(smid) {
     manager = this;
-    if (typeof manager.Switchmates[smid] !== 'undefined')
-    {
+    if (typeof manager.Switchmates[smid] !== 'undefined') {
         return manager.Switchmates[smid].ToggleState; //if switchmate exists, return its last known Toggle State.
-    } else
-    {
+    } else {
         return false;  //otherwise, just assume it is turned off.   
     }
 };
 
-SwitchmateManager.prototype.GetReachableState = function (smid)
-{
-    if (this.SmIdList[smid] === false || typeof this.SmIdList[smid] === 'undefined')
-    {
+SwitchmateManager.prototype.GetReachableState = function(smid) {
+    if (this.SmIdList[smid] === false || typeof this.SmIdList[smid] === 'undefined') {
         return false;
-    } else
-    {
+    } else {
         return this.Switchmates[smid].Reachable;
     }
 };
 
-SwitchmateManager.prototype.On = function (smid)
-{
+SwitchmateManager.prototype.On = function(smid) {
     manager = this;
-    if (manager.SmIdList[smid] === true && manager.Switchmates[smid].ToggleState === false)
-    {
+    if (manager.SmIdList[smid] === true && manager.Switchmates[smid].ToggleState === false) {
         var ToggleMode = manager.Switchmates[smid].ToggleMode();
         //ToggleMode.event.on('toggleDone', restartScan);
-        
+
         ToggleMode.TurnOn();
     }
 };
 
-SwitchmateManager.prototype.Off = function (smid)
-{
+SwitchmateManager.prototype.Off = function(smid) {
     manager = this;
-    if (manager.SmIdList[smid] === true && manager.Switchmates[smid].ToggleState === true)
-    {
+    if (manager.SmIdList[smid] === true && manager.Switchmates[smid].ToggleState === true) {
         ToggleMode = manager.Switchmates[smid].ToggleMode();
         ToggleMode.TurnOff();
     }
 };
 
-SwitchmateManager.prototype.Identify = function (smid)
-{
+SwitchmateManager.prototype.Identify = function(smid) {
     manager = this;
-    if (manager.SmIdList[smid] === true)
-    {
+    if (manager.SmIdList[smid] === true) {
         ToggleMode = manager.Switchmates[smid].ToggleMode();
         ToggleMode.IdentifySwitchmate();
     }
